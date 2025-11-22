@@ -13,6 +13,9 @@ from datos.gestor_metas import GestorMetas
 class PanelMetas(ttk.Frame):
     """Panel para gestionar metas financieras"""
 
+    # ✅ Agregar constante
+    MAX_DESCRIPCION_CARACTERES = 80
+
     def __init__(self, parent, gestor_datos):
         super().__init__(parent)
         self.gestor_datos = gestor_datos
@@ -58,10 +61,26 @@ class PanelMetas(ttk.Frame):
                                      borderwidth=2, date_pattern='yyyy-mm-dd')
         self.entry_fecha.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-        # Descripción
+        # REEMPLÁZALA POR:
         ttk.Label(frame_form, text="Descripción:").grid(row=1, column=2, sticky=tk.W, pady=5)
-        self.entry_desc = ttk.Entry(frame_form, width=30)
-        self.entry_desc.grid(row=1, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+
+        # Frame con contador
+        desc_frame_meta = ttk.Frame(frame_form)
+        desc_frame_meta.grid(row=1, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+
+        self.entry_desc = ttk.Entry(desc_frame_meta, width=30)
+        self.entry_desc.pack(side=tk.TOP, fill=tk.X)
+
+        # Contador de caracteres
+        self.lbl_contador_meta = ttk.Label(desc_frame_meta,
+                                           text=f"0/{self.MAX_DESCRIPCION_CARACTERES}",
+                                           font=('Arial', 8),
+                                           foreground='gray')
+        self.lbl_contador_meta.pack(side=tk.TOP, anchor=tk.E)
+
+        # Bind para actualizar contador
+        self.entry_desc.bind('<KeyPress>', self.actualizar_contador_meta)
+        self.entry_desc.bind('<KeyRelease>', self.actualizar_contador_meta)
 
         # Botones
         frame_btns = ttk.Frame(frame_form)
@@ -106,6 +125,32 @@ class PanelMetas(ttk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+    def actualizar_contador_meta(self, event=None):
+        """Actualiza el contador de caracteres en descripción de meta"""
+        self.after(1, self._actualizar_contador_meta_interno)
+
+    def _actualizar_contador_meta_interno(self):
+        """Función interna para actualizar contador de meta"""
+        texto = self.entry_desc.get()
+        longitud = len(texto)
+
+        # Actualizar contador
+        self.lbl_contador_meta.config(text=f"{longitud}/{self.MAX_DESCRIPCION_CARACTERES}")
+
+        # Cambiar color según longitud
+        if longitud > self.MAX_DESCRIPCION_CARACTERES:
+            self.lbl_contador_meta.config(foreground='red', font=('Arial', 9, 'bold'))
+            # Truncar automáticamente
+            self.entry_desc.delete(self.MAX_DESCRIPCION_CARACTERES, tk.END)
+            # Sonido de advertencia
+            self.bell()
+        elif longitud > self.MAX_DESCRIPCION_CARACTERES * 0.9:  # 72 caracteres
+            self.lbl_contador_meta.config(foreground='orange', font=('Arial', 8, 'bold'))
+        elif longitud > self.MAX_DESCRIPCION_CARACTERES * 0.7:  # 56 caracteres
+            self.lbl_contador_meta.config(foreground='#F39C12', font=('Arial', 8))
+        else:
+            self.lbl_contador_meta.config(foreground='gray', font=('Arial', 8))
+
     def agregar_meta(self):
         """Agrega una nueva meta"""
         nombre = self.entry_nombre.get().strip()
@@ -117,6 +162,12 @@ class PanelMetas(ttk.Frame):
             messagebox.showwarning("Advertencia", "Ingresa un nombre para la meta")
             return
 
+        # ✅ Validar longitud de descripción
+        if len(desc) > self.MAX_DESCRIPCION_CARACTERES:
+            messagebox.showwarning("Advertencia",
+                                   f"La descripción es muy larga\n\nMáximo: {self.MAX_DESCRIPCION_CARACTERES} caracteres\nActual: {len(desc)}")
+            return
+
         try:
             monto_float = float(monto)
             if monto_float <= 0:
@@ -124,6 +175,10 @@ class PanelMetas(ttk.Frame):
         except ValueError:
             messagebox.showwarning("Advertencia", "Ingresa un monto válido")
             return
+
+        # Truncar por si acaso
+        if len(desc) > self.MAX_DESCRIPCION_CARACTERES:
+            desc = desc[:self.MAX_DESCRIPCION_CARACTERES]
 
         self.gestor_metas.agregar_meta(nombre, monto_float, fecha, desc)
         self.actualizar_metas()
@@ -144,11 +199,21 @@ class PanelMetas(ttk.Frame):
             messagebox.showwarning("Advertencia", "Completa todos los campos")
             return
 
+        # ✅ Validar longitud de descripción
+        if len(desc) > self.MAX_DESCRIPCION_CARACTERES:
+            messagebox.showwarning("Advertencia",
+                                   f"La descripción es muy larga\n\nMáximo: {self.MAX_DESCRIPCION_CARACTERES} caracteres")
+            return
+
         try:
             monto_float = float(monto)
         except ValueError:
             messagebox.showwarning("Advertencia", "Monto inválido")
             return
+
+        # Truncar por si acaso
+        if len(desc) > self.MAX_DESCRIPCION_CARACTERES:
+            desc = desc[:self.MAX_DESCRIPCION_CARACTERES]
 
         self.gestor_metas.editar_meta(self.meta_seleccionada['id'],
                                       nombre, monto_float, fecha, desc)
@@ -177,6 +242,14 @@ class PanelMetas(ttk.Frame):
         self.meta_seleccionada = None
         self.btn_editar.config(state=tk.DISABLED)
         self.btn_eliminar.config(state=tk.DISABLED)
+
+        # ✅ Resetear contador
+        if hasattr(self, 'lbl_contador_meta'):
+            self.lbl_contador_meta.config(
+                text=f"0/{self.MAX_DESCRIPCION_CARACTERES}",
+                foreground='gray',
+                font=('Arial', 8)
+            )
 
     def actualizar_metas(self):
         """Actualiza la visualización de metas"""

@@ -1,32 +1,32 @@
 {
   "Alimentación": {
     "monto": 5000.0,
-    "fecha_creacion": "2025-11-21",
+    "fecha_creacion": "2025-11-20",
     "mes_actual": "2025-11"
   },
   "Transporte": {
     "monto": 2000.0,
-    "fecha_creacion": "2025-11-21",
+    "fecha_creacion": "2025-11-20",
     "mes_actual": "2025-11"
   },
   "Entretenimiento": {
     "monto": 1500.0,
-    "fecha_creacion": "2025-11-21",
+    "fecha_creacion": "2025-11-20",
     "mes_actual": "2025-11"
   },
   "Servicios": {
     "monto": 3000.0,
-    "fecha_creacion": "2025-11-21",
+    "fecha_creacion": "2025-11-20",
     "mes_actual": "2025-11"
   },
   "Salud": {
     "monto": 1000.0,
-    "fecha_creacion": "2025-11-21",
+    "fecha_creacion": "2025-11-20",
     "mes_actual": "2025-11"
   },
   "Educación": {
     "monto": 2000.0,
-    "fecha_creacion": "2025-11-21",
+    "fecha_creacion": "2025-11-20",
     "mes_actual": "2025-11"
   }
 }

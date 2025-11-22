@@ -87,7 +87,7 @@ MENSAJES = {
 
 # Configuración de Ollama (para futuro)
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODELO = "llama3.2:3b-instruct-fp16"
+OLLAMA_MODELO = "llama3.2:latest"
 OLLAMA_TIMEOUT = 30
 
 # Configuración de alertas

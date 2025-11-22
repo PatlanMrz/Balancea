@@ -1,6 +1,6 @@
 """
-Panel de Transacciones
-Permite agregar, editar y eliminar transacciones con búsqueda y filtros
+Panel de Transacciones - CORREGIDO
+Límite de caracteres y truncado de descripciones largas
 """
 
 import tkinter as tk
@@ -11,6 +11,10 @@ from tkcalendar import DateEntry
 
 class PanelTransacciones(ttk.Frame):
     """Panel para gestionar transacciones"""
+
+    # ✅ FIX: Constantes para límites
+    MAX_DESCRIPCION_CARACTERES = 50
+    MAX_DESCRIPCION_DISPLAY = 50  # Para mostrar en lista
 
     def __init__(self, parent, gestor_datos, callback_actualizar):
         super().__init__(parent)
@@ -78,10 +82,24 @@ class PanelTransacciones(ttk.Frame):
                                      borderwidth=2, date_pattern='yyyy-mm-dd')
         self.fecha_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-        # Descripción
+        # Descripción con límite de caracteres
         ttk.Label(frame_formulario, text="Descripción:").grid(row=0, column=2, sticky=tk.W, pady=5)
-        self.descripcion_entry = ttk.Entry(frame_formulario, width=30)
-        self.descripcion_entry.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+
+        # ✅ FIX: Frame para descripción con contador
+        desc_frame = ttk.Frame(frame_formulario)
+        desc_frame.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+
+        self.descripcion_entry = ttk.Entry(desc_frame, width=30)
+        self.descripcion_entry.pack(side=tk.TOP, fill=tk.X)
+
+        # Contador de caracteres
+        self.lbl_contador = ttk.Label(desc_frame, text=f"0/{self.MAX_DESCRIPCION_CARACTERES}",
+                                      font=('Arial', 8), foreground='gray')
+        self.lbl_contador.pack(side=tk.TOP, anchor=tk.E)
+
+        # Bind para actualizar contador y validar
+        self.descripcion_entry.bind('<KeyPress>', self.actualizar_contador_descripcion)
+        self.descripcion_entry.bind('<KeyRelease>', self.actualizar_contador_descripcion)
 
         # Monto
         ttk.Label(frame_formulario, text="Monto:").grid(row=1, column=0, sticky=tk.W, pady=5)
@@ -160,6 +178,41 @@ class PanelTransacciones(ttk.Frame):
         # Actualizar categorías en filtro
         self.actualizar_filtro_categorias()
 
+    # ✅ FIX: Nueva función para actualizar contador
+    def actualizar_contador_descripcion(self, event=None):
+        """Actualiza el contador de caracteres y limita la entrada EN TIEMPO REAL"""
+        # Usar after() para ejecutar después de que la tecla se procese
+        self.after(1, self._actualizar_contador_interno)
+
+    def _actualizar_contador_interno(self):
+        """Función interna para actualizar contador"""
+        texto = self.descripcion_entry.get()
+        longitud = len(texto)
+
+        # Actualizar contador
+        self.lbl_contador.config(text=f"{longitud}/{self.MAX_DESCRIPCION_CARACTERES}")
+
+        # Cambiar color según longitud
+        if longitud > self.MAX_DESCRIPCION_CARACTERES:
+            self.lbl_contador.config(foreground='red', font=('Arial', 9, 'bold'))
+            # Truncar automáticamente
+            self.descripcion_entry.delete(self.MAX_DESCRIPCION_CARACTERES, tk.END)
+            # Sonido de advertencia (opcional)
+            self.bell()
+        elif longitud > self.MAX_DESCRIPCION_CARACTERES * 0.9:  # 180 caracteres
+            self.lbl_contador.config(foreground='orange', font=('Arial', 8, 'bold'))
+        elif longitud > self.MAX_DESCRIPCION_CARACTERES * 0.7:  # 140 caracteres
+            self.lbl_contador.config(foreground='#F39C12', font=('Arial', 8))
+        else:
+            self.lbl_contador.config(foreground='gray', font=('Arial', 8))
+
+    # ✅ FIX: Función para truncar descripciones en display
+    def truncar_descripcion(self, descripcion):
+        """Trunca descripción para mostrar en lista"""
+        if len(descripcion) > self.MAX_DESCRIPCION_DISPLAY:
+            return descripcion[:self.MAX_DESCRIPCION_DISPLAY] + "..."
+        return descripcion
+
     def actualizar_categorias(self, event=None):
         """Actualiza las categorías según el tipo seleccionado"""
         tipo = self.tipo_var.get()
@@ -202,17 +255,25 @@ class PanelTransacciones(ttk.Frame):
         if categoria_filtro != 'Todas':
             transacciones = [t for t in transacciones if t['categoria'] == categoria_filtro]
 
-        # Mostrar resultados
-        transacciones = sorted(transacciones, key=lambda x: x['fecha'], reverse=True)
-        for t in transacciones:
-            monto_formato = f"${t['monto']:,.2f}"
-            self.tree.insert('', tk.END, values=(
-                t['fecha'],
-                t['descripcion'],
-                monto_formato,
-                t['tipo'],
-                t['categoria']
-            ))
+        # ✅ FIX: Mostrar mensaje si no hay resultados
+        if not transacciones:
+            # No hacer nada, el árbol quedará vacío
+            pass
+        else:
+            # Mostrar resultados
+            transacciones = sorted(transacciones, key=lambda x: x['fecha'], reverse=True)
+            for t in transacciones:
+                monto_formato = f"${t['monto']:,.2f}"
+                # ✅ FIX: Truncar descripción al mostrar
+                descripcion_display = self.truncar_descripcion(t['descripcion'])
+
+                self.tree.insert('', tk.END, values=(
+                    t['fecha'],
+                    descripcion_display,
+                    monto_formato,
+                    t['tipo'],
+                    t['categoria']
+                ))
 
     def limpiar_filtros(self):
         """Limpia todos los filtros"""
@@ -245,10 +306,14 @@ class PanelTransacciones(ttk.Frame):
             return
 
         fecha = self.fecha_entry.get_date().strftime('%Y-%m-%d')
-        descripcion = self.descripcion_entry.get()
+        descripcion = self.descripcion_entry.get().strip()
         monto = float(self.monto_entry.get())
         tipo = self.tipo_var.get()
         categoria = self.categoria_var.get()
+
+        # ✅ FIX: Validación extra de longitud
+        if len(descripcion) > self.MAX_DESCRIPCION_CARACTERES:
+            descripcion = descripcion[:self.MAX_DESCRIPCION_CARACTERES]
 
         self.gestor_datos.agregar_transaccion(fecha, descripcion, monto, tipo, categoria)
 
@@ -267,10 +332,14 @@ class PanelTransacciones(ttk.Frame):
             return
 
         fecha = self.fecha_entry.get_date().strftime('%Y-%m-%d')
-        descripcion = self.descripcion_entry.get()
+        descripcion = self.descripcion_entry.get().strip()
         monto = float(self.monto_entry.get())
         tipo = self.tipo_var.get()
         categoria = self.categoria_var.get()
+
+        # ✅ FIX: Validación extra de longitud
+        if len(descripcion) > self.MAX_DESCRIPCION_CARACTERES:
+            descripcion = descripcion[:self.MAX_DESCRIPCION_CARACTERES]
 
         self.gestor_datos.editar_transaccion(
             self.transaccion_seleccionada['id'],
@@ -302,9 +371,9 @@ class PanelTransacciones(ttk.Frame):
             item = self.tree.item(seleccion[0])
             valores = item['values']
 
+            # Buscar la transacción completa (con descripción sin truncar)
             for t in self.gestor_datos.transacciones:
                 if (t['fecha'] == valores[0] and
-                    t['descripcion'] == valores[1] and
                     float(t['monto']) == float(valores[2].replace('$', '').replace(',', ''))):
                     self.transaccion_seleccionada = t
                     break
@@ -320,6 +389,7 @@ class PanelTransacciones(ttk.Frame):
             self.fecha_entry.set_date(fecha_obj)
             self.descripcion_entry.delete(0, tk.END)
             self.descripcion_entry.insert(0, self.transaccion_seleccionada['descripcion'])
+            self.actualizar_contador_descripcion()  # ✅ Actualizar contador
             self.monto_entry.delete(0, tk.END)
             self.monto_entry.insert(0, str(self.transaccion_seleccionada['monto']))
             self.tipo_var.set(self.transaccion_seleccionada['tipo'])
@@ -330,6 +400,7 @@ class PanelTransacciones(ttk.Frame):
         """Limpia todos los campos del formulario"""
         self.fecha_entry.set_date(datetime.now())
         self.descripcion_entry.delete(0, tk.END)
+        self.actualizar_contador_descripcion()  # ✅ Resetear contador
         self.monto_entry.delete(0, tk.END)
         self.tipo_var.set('')
         self.categoria_var.set('')
@@ -338,46 +409,174 @@ class PanelTransacciones(ttk.Frame):
         self.btn_eliminar.config(state=tk.DISABLED)
 
     def validar_campos(self):
-        """Valida que los campos estén completos"""
-        if not self.descripcion_entry.get():
-            messagebox.showwarning("Advertencia", "Ingresa una descripción")
+        """Valida que los campos estén completos - CON FEEDBACK VISUAL"""
+        descripcion = self.descripcion_entry.get().strip()
+
+        # Reset de estilos
+        self.descripcion_entry.config(style='TEntry')
+
+        if not descripcion:
+            self.descripcion_entry.config(background='#FFE5E5')  # Rojo claro
+            messagebox.showwarning("Advertencia", "❌ Ingresa una descripción")
+            self.descripcion_entry.focus()
             return False
+
+        if len(descripcion) < 3:
+            self.descripcion_entry.config(background='#FFE5E5')
+            messagebox.showwarning("Advertencia", "❌ La descripción debe tener al menos 3 caracteres")
+            self.descripcion_entry.focus()
+            return False
+
+        # ✅ Validación de longitud máxima (no debería pasar, pero por si acaso)
+        if len(descripcion) > self.MAX_DESCRIPCION_CARACTERES:
+            self.descripcion_entry.config(background='#FFE5E5')
+            messagebox.showwarning("Advertencia",
+                                   f"❌ La descripción es demasiado larga\n\nMáximo: {self.MAX_DESCRIPCION_CARACTERES} caracteres\nActual: {len(descripcion)} caracteres")
+            self.descripcion_entry.focus()
+            return False
+
+        # Restablecer color normal
+        self.descripcion_entry.config(background='white')
 
         try:
             monto = float(self.monto_entry.get())
             if monto <= 0:
                 raise ValueError
         except ValueError:
-            messagebox.showwarning("Advertencia", "Ingresa un monto válido")
+            self.monto_entry.config(background='#FFE5E5')
+            messagebox.showwarning("Advertencia", "❌ Ingresa un monto válido")
+            self.monto_entry.focus()
+            # Restaurar después de 2 segundos
+            self.after(2000, lambda: self.monto_entry.config(background='white'))
             return False
 
+        self.monto_entry.config(background='white')
+
         if not self.tipo_var.get():
-            messagebox.showwarning("Advertencia", "Selecciona un tipo")
+            messagebox.showwarning("Advertencia", "❌ Selecciona un tipo")
+            self.tipo_combo.focus()
             return False
 
         if not self.categoria_var.get():
-            messagebox.showwarning("Advertencia", "Selecciona una categoría")
+            messagebox.showwarning("Advertencia", "❌ Selecciona una categoría")
+            self.categoria_combo.focus()
             return False
 
         return True
 
     def cargar_transacciones(self):
-        """Carga todas las transacciones en el Treeview"""
+        """Carga todas las transacciones en el Treeview - CON MENSAJE VACÍO"""
         for item in self.tree.get_children():
             self.tree.delete(item)
 
         transacciones = sorted(self.gestor_datos.transacciones,
-                              key=lambda x: x['fecha'], reverse=True)
+                               key=lambda x: x['fecha'], reverse=True)
 
-        for t in transacciones:
-            monto_formato = f"${t['monto']:,.2f}"
-            self.tree.insert('', tk.END, values=(
-                t['fecha'],
-                t['descripcion'],
-                monto_formato,
-                t['tipo'],
-                t['categoria']
-            ))
+        # ✅ FIX: Mostrar mensaje si no hay transacciones
+        if not transacciones:
+            # Crear overlay con mensaje
+            if not hasattr(self, 'frame_vacio_trans'):
+                # Frame overlay que se coloca sobre el Treeview
+                self.frame_vacio_trans = tk.Frame(self.tree.master, bg='#ECF0F1')
+
+            # Limpiar y recrear
+            for widget in self.frame_vacio_trans.winfo_children():
+                widget.destroy()
+
+            # Posicionar sobre el área del tree
+            self.frame_vacio_trans.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
+            # Contenido del mensaje
+            lbl_icono = tk.Label(self.frame_vacio_trans,
+                                 text="💳",
+                                 font=('Arial', 48),
+                                 bg='#ECF0F1')
+            lbl_icono.pack(pady=10)
+
+            lbl_titulo = tk.Label(self.frame_vacio_trans,
+                                  text="No hay transacciones registradas",
+                                  font=('Arial', 14, 'bold'),
+                                  bg='#ECF0F1',
+                                  fg='#2C3E50')
+            lbl_titulo.pack(pady=5)
+
+            lbl_mensaje = tk.Label(self.frame_vacio_trans,
+                                   text="Comienza tu registro financiero agregando\ntu primera transacción con el botón de arriba",
+                                   font=('Arial', 10),
+                                   bg='#ECF0F1',
+                                   fg='#7F8C8D',
+                                   justify=tk.CENTER)
+            lbl_mensaje.pack(pady=10)
+
+            # Frame con botones de ayuda
+            frame_tips = tk.Frame(self.frame_vacio_trans, bg='#ECF0F1')
+            frame_tips.pack(pady=15)
+
+            lbl_tips_titulo = tk.Label(frame_tips,
+                                       text="💡 Consejos rápidos:",
+                                       font=('Arial', 10, 'bold'),
+                                       bg='#ECF0F1',
+                                       fg='#3498DB')
+            lbl_tips_titulo.pack(anchor=tk.W, padx=20)
+
+            tips = [
+                "• Registra tus gastos diariamente",
+                "• Sé específico en las descripciones",
+                "• Usa las categorías correctas",
+                "• Puedes generar datos demo para probar"
+            ]
+
+            for tip in tips:
+                lbl_tip = tk.Label(frame_tips,
+                                   text=tip,
+                                   font=('Arial', 9),
+                                   bg='#ECF0F1',
+                                   fg='#2C3E50',
+                                   anchor=tk.W)
+                lbl_tip.pack(anchor=tk.W, padx=20, pady=2)
+
+            # Botón demo
+            btn_demo = ttk.Button(frame_tips,
+                                  text="🎲 Generar Datos Demo",
+                                  command=self.generar_demo_desde_transacciones)
+            btn_demo.pack(pady=15)
+
+        else:
+            # ✅ Ocultar mensaje si hay transacciones
+            if hasattr(self, 'frame_vacio_trans'):
+                self.frame_vacio_trans.place_forget()
+
+            # Mostrar transacciones normalmente
+            for t in transacciones:
+                monto_formato = f"${t['monto']:,.2f}"
+                descripcion_display = self.truncar_descripcion(t['descripcion'])
+
+                self.tree.insert('', tk.END, values=(
+                    t['fecha'],
+                    descripcion_display,
+                    monto_formato,
+                    t['tipo'],
+                    t['categoria']
+                ))
+
+    # ✅ Agregar función helper para demo
+    def generar_demo_desde_transacciones(self):
+        """Genera datos demo desde transacciones"""
+        if messagebox.askyesno("Generar Demo",
+                               "¿Deseas generar transacciones de demostración?\n\n" +
+                               "Esto agregará aproximadamente 60 transacciones de ejemplo."):
+            from utils.generador_demo import GeneradorDemo
+
+            generador = GeneradorDemo(self.gestor_datos)
+            num_trans = generador.generar_transacciones_demo(60)
+
+            # Actualizar vista
+            self.cargar_transacciones()
+            self.callback_actualizar()
+
+            messagebox.showinfo("✅ Demo Generado",
+                                f"Se generaron {num_trans} transacciones de demostración.\n\n" +
+                                "Explora el Dashboard y Análisis para ver los datos.")
 
 
 class VentanaCategorias(tk.Toplevel):

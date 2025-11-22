@@ -54,11 +54,14 @@ except ImportError:
         def mostrar_ayuda_atajos(parent):
             messagebox.showinfo("Atajos", "F1: Ayuda\nF5: Actualizar\nCtrl+Q: Salir")
 
+
     class DialogosUtil:
         pass
 
+
     def mostrar_ventana_bienvenida(parent, gestor_datos):
         pass  # No hacer nada si no existe
+
 
     def crear_tooltip(widget, texto):
         pass  # No hacer nada si no existe
@@ -93,11 +96,11 @@ class BalanceaApp:
         self.splash_frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
         ttk.Label(self.splash_frame, text="💰 BALANCEA",
-                 font=('Arial', 24, 'bold'),
-                 foreground='#3498DB').pack(pady=20)
+                  font=('Arial', 24, 'bold'),
+                  foreground='#3498DB').pack(pady=20)
 
         ttk.Label(self.splash_frame, text="Cargando...",
-                 font=('Arial', 12)).pack(pady=10)
+                  font=('Arial', 12)).pack(pady=10)
 
         self.progress = ttk.Progressbar(self.splash_frame, mode='indeterminate', length=300)
         self.progress.pack(pady=10)
@@ -144,12 +147,12 @@ class BalanceaApp:
 
         # Configurar estilos
         style.configure('Header.TLabel',
-                       font=('Arial', 14, 'bold'),
-                       foreground=self.color_primario)
+                        font=('Arial', 14, 'bold'),
+                        foreground=self.color_primario)
 
         style.configure('Title.TLabel',
-                       font=('Arial', 18, 'bold'),
-                       foreground=self.color_secundario)
+                        font=('Arial', 18, 'bold'),
+                        foreground=self.color_secundario)
 
         self.root.configure(bg=self.color_fondo)
 
@@ -192,8 +195,8 @@ class BalanceaApp:
 
         # Título de la aplicación
         titulo = ttk.Label(main_frame,
-                          text="💰 BALANCEA",
-                          style='Title.TLabel')
+                           text="💰 BALANCEA",
+                           style='Title.TLabel')
         titulo.grid(row=0, column=0, pady=(0, 10), sticky=tk.W)
 
         # Frame de botones de acción rápida
@@ -201,17 +204,17 @@ class BalanceaApp:
         frame_acciones.grid(row=0, column=1, pady=(0, 10), sticky=tk.E)
 
         btn_demo = ttk.Button(frame_acciones, text="🎲 Generar Demo",
-                  command=self.generar_datos_demo)
+                              command=self.generar_datos_demo)
         btn_demo.pack(side=tk.LEFT, padx=5)
         crear_tooltip(btn_demo, "Genera datos de demostración para probar la app")
 
         btn_ayuda = ttk.Button(frame_acciones, text="📖 Ayuda (F1)",
-                  command=self.mostrar_ayuda)
+                               command=self.mostrar_ayuda)
         btn_ayuda.pack(side=tk.LEFT, padx=5)
         crear_tooltip(btn_ayuda, "Muestra los atajos de teclado disponibles")
 
         btn_optimizar = ttk.Button(frame_acciones, text="🔧 Optimizar",
-                  command=self.optimizar_sistema)
+                                   command=self.optimizar_sistema)
         btn_optimizar.pack(side=tk.LEFT, padx=5)
         crear_tooltip(btn_optimizar, "Optimiza y limpia el sistema")
 
@@ -326,7 +329,7 @@ class BalanceaApp:
                 return
             elif respuesta is False:  # NO - Limpiar todo
                 if messagebox.askokcancel("Confirmar",
-                    "Esto ELIMINARÁ todas tus transacciones, metas y presupuestos actuales.\n\n¿Estás seguro?"):
+                                          "Esto ELIMINARÁ todas tus transacciones, metas y presupuestos actuales.\n\n¿Estás seguro?"):
                     # Limpiar datos
                     self.gestor_datos.transacciones = []
                     self.gestor_datos.guardar_datos()
@@ -356,13 +359,12 @@ class BalanceaApp:
         from utils.optimizador import Optimizador
 
         if messagebox.askyesno("Optimizar Sistema",
-            "Esto hará:\n\n"
-            "• Crear backup de datos\n"
-            "• Eliminar duplicados\n"
-            "• Corregir IDs\n"
-            "• Limpiar backups antiguos\n\n"
-            "¿Continuar?"):
-
+                               "Esto hará:\n\n"
+                               "• Crear backup de datos\n"
+                               "• Eliminar duplicados\n"
+                               "• Corregir IDs\n"
+                               "• Limpiar backups antiguos\n\n"
+                               "¿Continuar?"):
             optimizador = Optimizador(self.gestor_datos)
             resultados = optimizador.optimizar_todo()
 

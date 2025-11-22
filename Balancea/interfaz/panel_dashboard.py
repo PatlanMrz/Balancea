@@ -224,14 +224,97 @@ class PanelDashboard(ttk.Frame):
         setattr(self, f'lbl_{nombre}', lbl_valor)
 
     def actualizar_datos(self):
-        """Actualiza todos los datos del dashboard"""
-        # Verificar si hay transacciones
+        """Actualiza todos los datos del dashboard - CON MENSAJE SIN DATOS"""
+        # ✅ FIX: Verificar si hay transacciones y mostrar mensaje
         if not self.gestor_datos.transacciones:
+            # Limpiar todo y mostrar mensaje
             self.lbl_balance.config(text="$0.00")
             self.lbl_ingresos.config(text="$0.00")
             self.lbl_gastos.config(text="$0.00")
             self.lbl_ahorro.config(text="0.0%")
-            return
+
+            # Limpiar estadísticas
+            self.lbl_mes_nombre.config(text="Sin datos del mes")
+            self.lbl_ingresos_mes.config(text="Ingresos del mes: $0.00")
+            self.lbl_gastos_mes.config(text="Gastos del mes: $0.00")
+            self.lbl_balance_mes.config(text="Balance del mes: $0.00")
+
+            self.lbl_total_trans.config(text="Total de transacciones: 0")
+            self.lbl_trans_mes.config(text="Transacciones este mes: 0")
+            self.lbl_categoria_max.config(text="Categoría top: N/A")
+            self.lbl_promedio.config(text="Promedio diario: $0.00")
+
+            # Limpiar comparativa
+            self.lbl_comp_ingresos.config(text="Ingresos: $0.00 (0%)", foreground='gray')
+            self.lbl_comp_gastos.config(text="Gastos: $0.00 (0%)", foreground='gray')
+            self.lbl_comp_balance.config(text="Balance: $0.00 (0%)", foreground='gray')
+
+            # Limpiar top 5
+            for item in self.tree_top.get_children():
+                self.tree_top.delete(item)
+
+            # Limpiar metas y presupuestos
+            self.lbl_metas_resumen.config(text="No hay metas configuradas")
+            self.lbl_metas_progreso.config(text="💡 Ve a la pestaña Metas para crear una")
+            self.lbl_presup_resumen.config(text="No hay presupuestos configurados")
+            self.lbl_presup_estado.config(text="💡 Ve a la pestaña Presupuestos")
+
+            # ✅ FIX: Crear frame con mensaje motivacional
+            # Verificar si ya existe el frame de mensaje
+            if not hasattr(self, 'frame_mensaje_vacio'):
+                self.frame_mensaje_vacio = ttk.Frame(self.frame_contenido)
+
+            # Limpiar y recrear mensaje
+            for widget in self.frame_mensaje_vacio.winfo_children():
+                widget.destroy()
+
+            self.frame_mensaje_vacio.grid(row=6, column=0, columnspan=4, pady=50)
+
+            # Mensaje principal
+            lbl_icono = ttk.Label(self.frame_mensaje_vacio,
+                                  text="📊",
+                                  font=('Arial', 48))
+            lbl_icono.pack(pady=10)
+
+            lbl_titulo = ttk.Label(self.frame_mensaje_vacio,
+                                   text="¡Bienvenido a Balancea!",
+                                   font=('Arial', 20, 'bold'),
+                                   foreground='#3498DB')
+            lbl_titulo.pack(pady=10)
+
+            lbl_mensaje = ttk.Label(self.frame_mensaje_vacio,
+                                    text="Aún no tienes transacciones registradas.\nComienza tu viaje financiero agregando tu primera transacción.",
+                                    font=('Arial', 12),
+                                    justify=tk.CENTER)
+            lbl_mensaje.pack(pady=10)
+
+            # Botones de acción
+            frame_botones = ttk.Frame(self.frame_mensaje_vacio)
+            frame_botones.pack(pady=20)
+
+            btn_agregar = ttk.Button(frame_botones,
+                                     text="➕ Agregar Transacción",
+                                     command=lambda: self.master.master.notebook.select(
+                                         1))  # Ir a pestaña Transacciones
+            btn_agregar.pack(side=tk.LEFT, padx=10)
+
+            btn_demo = ttk.Button(frame_botones,
+                                  text="🎲 Generar Datos Demo",
+                                  command=self.generar_datos_demo_desde_dashboard)
+            btn_demo.pack(side=tk.LEFT, padx=10)
+
+            # Tips
+            lbl_tips = ttk.Label(self.frame_mensaje_vacio,
+                                 text="💡 Tip: Los datos demo te ayudarán a explorar todas las funciones de Balancea",
+                                 font=('Arial', 9, 'italic'),
+                                 foreground='#7F8C8D')
+            lbl_tips.pack(pady=10)
+
+            return  # Salir temprano
+
+        # Si llegamos aquí, hay datos - ocultar mensaje si existe
+        if hasattr(self, 'frame_mensaje_vacio'):
+            self.frame_mensaje_vacio.grid_remove()
 
         # Obtener datos generales
         balance = self.gestor_datos.obtener_balance()
@@ -498,3 +581,18 @@ class PanelDashboard(ttk.Frame):
 
         ttk.Button(frame, text="Cancelar",
                   command=ventana.destroy, width=25).pack(pady=10)
+
+    def generar_datos_demo_desde_dashboard(self):
+        """Genera datos demo desde el dashboard"""
+        # Esta función debe estar en la clase principal (app.py)
+        # pero la llamamos desde aquí
+        try:
+            # Buscar la ventana principal
+            app_window = self.winfo_toplevel()
+            if hasattr(app_window, 'generar_datos_demo'):
+                app_window.generar_datos_demo()
+            else:
+                messagebox.showinfo("Info", "Usa el botón '🎲 Generar Demo' en la parte superior de la ventana")
+        except Exception as e:
+            print(f"Error al generar demo: {e}")
+            messagebox.showerror("Error", "No se pudo generar los datos demo")

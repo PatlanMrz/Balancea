@@ -1,0 +1,90 @@
+[
+  {
+    "id": "1",
+    "nombre": "Boda",
+    "monto_objetivo": 1000.0,
+    "monto_actual": 1000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2025-11-21",
+    "descripcion": "boda con mi nena",
+    "completada": true,
+    "fecha_completada": "2025-11-20"
+  },
+  {
+    "id": "2",
+    "nombre": "Fondo de Emergencia",
+    "monto_objetivo": 50000.0,
+    "monto_actual": 15000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2026-05-19",
+    "descripcion": "Ahorro para imprevistos",
+    "completada": false,
+    "fecha_completada": null
+  },
+  {
+    "id": "3",
+    "nombre": "Vacaciones 2025",
+    "monto_objetivo": 25000.0,
+    "monto_actual": 8000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2026-04-19",
+    "descripcion": "Viaje a la playa",
+    "completada": false,
+    "fecha_completada": null
+  },
+  {
+    "id": "4",
+    "nombre": "Laptop Nueva",
+    "monto_objetivo": 15000.0,
+    "monto_actual": 12000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2026-01-19",
+    "descripcion": "Para trabajo y estudios",
+    "completada": false,
+    "fecha_completada": null
+  },
+  {
+    "id": "5",
+    "nombre": "Fondo de Emergencia",
+    "monto_objetivo": 50000.0,
+    "monto_actual": 15000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2026-05-19",
+    "descripcion": "Ahorro para imprevistos",
+    "completada": false,
+    "fecha_completada": null
+  },
+  {
+    "id": "6",
+    "nombre": "Vacaciones 2025",
+    "monto_objetivo": 25000.0,
+    "monto_actual": 8000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2026-04-19",
+    "descripcion": "Viaje a la playa",
+    "completada": false,
+    "fecha_completada": null
+  },
+  {
+    "id": "7",
+    "nombre": "Laptop Nueva",
+    "monto_objetivo": 15000.0,
+    "monto_actual": 12000.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2026-01-19",
+    "descripcion": "Para trabajo y estudios ó á é í ú",
+    "completada": false,
+    "fecha_completada": null
+  },
+  {
+    "id": "8",
+    "nombre": "muerte",
+    "monto_objetivo": 9e+17,
+    "monto_actual": 0.0,
+    "fecha_creacion": "2025-11-20",
+    "fecha_limite": "2025-11-21",
+    "descripcion": "ahorro por si llegara a suceder la situacion en la que lamentablemente, en la que dios no quiso ver por donde iba caminando, me tropece en la calle, me caí en una alcantarilla y me morí. lol que mal dios ayudame a acbar este testeo del demonio, dime que el profesor alanis me va  sacar un dies hfdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "completada": false,
+    "fecha_completada": null
+  }
+]
