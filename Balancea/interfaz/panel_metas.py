@@ -106,24 +106,76 @@ class PanelMetas(ttk.Frame):
         frame_form.columnconfigure(3, weight=1)
 
         # === LISTA DE METAS ===
-        frame_lista = ttk.LabelFrame(self, text="Mis Metas", padding="10")
-        frame_lista.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.frame_lista = ttk.LabelFrame(self, text="Mis Metas", padding="10")
+        self.frame_lista.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # Canvas con scroll
-        canvas = tk.Canvas(frame_lista, bg='#ECF0F1', highlightthickness=0)
-        scrollbar = ttk.Scrollbar(frame_lista, orient="vertical", command=canvas.yview)
-        self.frame_metas = ttk.Frame(canvas)
+        # Canvas con scroll que ocupa todo el alto
+        self.canvas = tk.Canvas(self.frame_lista, bg='#ECF0F1', highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self.frame_lista, orient="vertical", command=self.canvas.yview)
+        self.frame_metas = ttk.Frame(self.canvas)
 
         self.frame_metas.bind(
             "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        canvas.create_window((0, 0), window=self.frame_metas, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # mantener referencia a la ventana del canvas para poder ajustar el ancho
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.frame_metas, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        # Ajustar el ancho del frame al del canvas para evitar cortes
+        self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfigure(self.canvas_window, width=e.width))
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        # Habilitar scroll con la rueda del ratón (Windows, macOS, Linux)
+        def _on_mousewheel(event):
+            # Windows y macOS usan event.delta, Linux usa Button-4/5
+            delta = 0
+            if hasattr(event, 'delta') and event.delta != 0:
+                delta = int(-1 * (event.delta / 120))
+            elif getattr(event, 'num', None) == 4:  # scroll up en X11
+                delta = -3
+            elif getattr(event, 'num', None) == 5:  # scroll down en X11
+                delta = 3
+            if delta == 0:
+                return
+
+            # Si no hay contenido suficiente, no hacer scroll
+            if not getattr(self, '_can_scroll', True):
+                return
+
+            # Clampear en bordes para evitar espacios en blanco
+            first, last = self.canvas.yview()
+            if delta < 0 and first <= 0.0:
+                return  # tope superior
+            if delta > 0 and last >= 1.0:
+                return  # fondo
+
+            self.canvas.yview_scroll(delta, "units")
+
+        def _bind_mousewheel(_):
+            # Windows/macOS
+            self.canvas.bind_all('<MouseWheel>', _on_mousewheel)
+            # Linux
+            self.canvas.bind_all('<Button-4>', _on_mousewheel)
+            self.canvas.bind_all('<Button-5>', _on_mousewheel)
+
+        def _unbind_mousewheel(_):
+            self.canvas.unbind_all('<MouseWheel>')
+            self.canvas.unbind_all('<Button-4>')
+            self.canvas.unbind_all('<Button-5>')
+
+        self.canvas.bind('<Enter>', _bind_mousewheel)
+        self.canvas.bind('<Leave>', _unbind_mousewheel)
+
+        # Estado inicial de capacidad de scroll
+        self._can_scroll = False
+
+        # Frame de estado vacío a pantalla completa dentro de la sección inferior
+        self.empty_state_frame = ttk.Frame(self.frame_lista)
+        # no se muestra aún, se gestionará en actualizar_metas()
 
     def actualizar_contador_meta(self, event=None):
         """Actualiza el contador de caracteres en descripción de meta"""
@@ -268,28 +320,86 @@ class PanelMetas(ttk.Frame):
         if metas_activas:
             lbl_activas = ttk.Label(self.frame_metas, text="📌 Metas Activas",
                                     font=('Arial', 12, 'bold'))
-            lbl_activas.pack(anchor=tk.W, pady=(10, 5))
+            lbl_activas.pack(anchor=tk.W, pady=(0, 5))
 
             for meta in metas_activas:
                 self.crear_tarjeta_meta(meta)
+
+            # Recalcular región de scroll y fijar al tope
+            self.canvas.update_idletasks()
+            self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+            self.canvas.yview_moveto(0.0)
 
         # Metas completadas
         metas_completadas = self.gestor_metas.obtener_metas_completadas()
         if metas_completadas:
             lbl_completadas = ttk.Label(self.frame_metas, text="✅ Metas Completadas",
                                         font=('Arial', 12, 'bold'))
-            lbl_completadas.pack(anchor=tk.W, pady=(20, 5))
+            lbl_completadas.pack(anchor=tk.W, pady=(10, 5))
 
             for meta in metas_completadas:
                 self.crear_tarjeta_meta(meta)
 
-        # Sin metas
+            # Recalcular región de scroll y fijar al tope
+            self.canvas.update_idletasks()
+            self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+            self.canvas.yview_moveto(0.0)
+
+        # Sin metas: mostrar estado vacío ocupando toda la sección inferior
         if not metas_activas and not metas_completadas:
-            lbl_vacio = ttk.Label(self.frame_metas,
-                                  text="🎯 No tienes metas registradas\n\nAgrega tu primera meta financiera arriba",
-                                  font=('Arial', 11),
-                                  justify=tk.CENTER)
-            lbl_vacio.pack(expand=True, pady=50)
+            # Ocultar el canvas con la lista y mostrar estado vacío a pantalla completa
+            try:
+                self.canvas.pack_forget()
+                self.scrollbar.pack_forget()
+            except Exception:
+                pass
+
+            for w in self.empty_state_frame.winfo_children():
+                w.destroy()
+
+            ttk.Label(self.empty_state_frame, text="🎯", font=('Arial', 48)).pack(pady=10)
+            ttk.Label(self.empty_state_frame,
+                      text="No tienes metas registradas",
+                      font=('Arial', 14, 'bold')).pack(pady=5)
+            ttk.Label(self.empty_state_frame,
+                      text="Agrega tu primera meta financiera con el formulario superior",
+                      font=('Arial', 10)).pack(pady=5)
+
+            self.empty_state_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+            return
+        else:
+            # Asegurar que la lista con scroll esté visible y ocultar estado vacío
+            try:
+                self.empty_state_frame.pack_forget()
+            except Exception:
+                pass
+            self.canvas.pack(side="left", fill="both", expand=True)
+            self.scrollbar.pack(side="right", fill="y")
+
+            # Recalcular scroll y estado de scrollbar al final
+            self._update_scroll_state()
+
+    def _update_scroll_state(self):
+        """Recalcula scrollregion y habilita/deshabilita el scroll según contenido"""
+        try:
+            self.canvas.update_idletasks()
+            bbox = self.canvas.bbox('all')
+            if not bbox:
+                self._can_scroll = False
+                self.scrollbar.state(['disabled'])
+                self.canvas.yview_moveto(0.0)
+                return
+            self.canvas.configure(scrollregion=bbox)
+            content_h = bbox[3] - bbox[1]
+            view_h = self.canvas.winfo_height()
+            self._can_scroll = content_h > view_h + 1
+            if self._can_scroll:
+                self.scrollbar.state(['!disabled'])
+            else:
+                self.scrollbar.state(['disabled'])
+                self.canvas.yview_moveto(0.0)
+        except Exception:
+            pass
 
     def crear_tarjeta_meta(self, meta):
         """Crea una tarjeta visual para una meta"""

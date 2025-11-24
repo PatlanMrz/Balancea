@@ -48,6 +48,9 @@ class PanelDashboard(ttk.Frame):
         # Empaquetar canvas y scrollbar
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        # Guardar referencias para poder ocultar/mostrar el dashboard completo
+        self._canvas_ref = canvas
+        self._scrollbar_ref = scrollbar
 
         # Habilitar scroll con rueda del mouse
         def _on_mousewheel(event):
@@ -259,62 +262,64 @@ class PanelDashboard(ttk.Frame):
             self.lbl_presup_resumen.config(text="No hay presupuestos configurados")
             self.lbl_presup_estado.config(text="💡 Ve a la pestaña Presupuestos")
 
-            # ✅ FIX: Crear frame con mensaje motivacional
-            # Verificar si ya existe el frame de mensaje
-            if not hasattr(self, 'frame_mensaje_vacio'):
-                self.frame_mensaje_vacio = ttk.Frame(self.frame_contenido)
+            # Mostrar vista de estado vacío a pantalla completa
+            # Ocultar dashboard con scroll si está visible
+            if hasattr(self, '_canvas_ref') and hasattr(self, '_scrollbar_ref'):
+                try:
+                    self._canvas_ref.pack_forget()
+                    self._scrollbar_ref.pack_forget()
+                except Exception:
+                    pass
 
-            # Limpiar y recrear mensaje
-            for widget in self.frame_mensaje_vacio.winfo_children():
-                widget.destroy()
+            # Crear frame de estado vacío si no existe
+            if not hasattr(self, 'empty_state_frame') or not self.empty_state_frame.winfo_exists():
+                self.empty_state_frame = ttk.Frame(self)
 
-            self.frame_mensaje_vacio.grid(row=6, column=0, columnspan=4, pady=50)
+                # Mensaje principal
+                lbl_icono = ttk.Label(self.empty_state_frame,
+                                      text="📊",
+                                      font=('Arial', 48))
+                lbl_icono.pack(pady=10)
 
-            # Mensaje principal
-            lbl_icono = ttk.Label(self.frame_mensaje_vacio,
-                                  text="📊",
-                                  font=('Arial', 48))
-            lbl_icono.pack(pady=10)
+                lbl_titulo = ttk.Label(self.empty_state_frame,
+                                       text="¡Bienvenido a Balancea!",
+                                       font=('Arial', 20, 'bold'),
+                                       foreground='#3498DB')
+                lbl_titulo.pack(pady=10)
 
-            lbl_titulo = ttk.Label(self.frame_mensaje_vacio,
-                                   text="¡Bienvenido a Balancea!",
-                                   font=('Arial', 20, 'bold'),
-                                   foreground='#3498DB')
-            lbl_titulo.pack(pady=10)
+                lbl_mensaje = ttk.Label(self.empty_state_frame,
+                                        text="Aún no tienes transacciones registradas.\nComienza tu viaje financiero agregando tu primera transacción.",
+                                        font=('Arial', 12),
+                                        justify=tk.CENTER)
+                lbl_mensaje.pack(pady=10)
 
-            lbl_mensaje = ttk.Label(self.frame_mensaje_vacio,
-                                    text="Aún no tienes transacciones registradas.\nComienza tu viaje financiero agregando tu primera transacción.",
-                                    font=('Arial', 12),
-                                    justify=tk.CENTER)
-            lbl_mensaje.pack(pady=10)
+                # Botones de acción
+                frame_botones = ttk.Frame(self.empty_state_frame)
+                frame_botones.pack(pady=20)
 
-            # Botones de acción
-            frame_botones = ttk.Frame(self.frame_mensaje_vacio)
-            frame_botones.pack(pady=20)
+                # Botón que navega a la pestaña de Transacciones
+                btn_agregar = ttk.Button(frame_botones,
+                                         text="➕ Agregar Transacción",
+                                         command=self.ir_a_transacciones)
+                btn_agregar.pack(side=tk.LEFT, padx=10)
 
-            btn_agregar = ttk.Button(frame_botones,
-                                     text="➕ Agregar Transacción",
-                                     command=lambda: self.master.master.notebook.select(
-                                         1))  # Ir a pestaña Transacciones
-            btn_agregar.pack(side=tk.LEFT, padx=10)
+                # Eliminar botón de generar datos demo y el tip asociado
 
-            btn_demo = ttk.Button(frame_botones,
-                                  text="🎲 Generar Datos Demo",
-                                  command=self.generar_datos_demo_desde_dashboard)
-            btn_demo.pack(side=tk.LEFT, padx=10)
-
-            # Tips
-            lbl_tips = ttk.Label(self.frame_mensaje_vacio,
-                                 text="💡 Tip: Los datos demo te ayudarán a explorar todas las funciones de Balancea",
-                                 font=('Arial', 9, 'italic'),
-                                 foreground='#7F8C8D')
-            lbl_tips.pack(pady=10)
+            # Mostrar la vista vacía ocupando toda el área
+            self.empty_state_frame.pack(fill=tk.BOTH, expand=True)
 
             return  # Salir temprano
 
-        # Si llegamos aquí, hay datos - ocultar mensaje si existe
-        if hasattr(self, 'frame_mensaje_vacio'):
-            self.frame_mensaje_vacio.grid_remove()
+        # Si hay datos, asegurar que el dashboard con scroll esté visible
+        if hasattr(self, 'empty_state_frame') and self.empty_state_frame.winfo_ismapped():
+            try:
+                self.empty_state_frame.pack_forget()
+            except Exception:
+                pass
+        if hasattr(self, '_canvas_ref') and hasattr(self, '_scrollbar_ref'):
+            if not self._canvas_ref.winfo_ismapped():
+                self._canvas_ref.pack(side="left", fill="both", expand=True)
+                self._scrollbar_ref.pack(side="right", fill="y")
 
         # Obtener datos generales
         balance = self.gestor_datos.obtener_balance()
@@ -596,3 +601,29 @@ class PanelDashboard(ttk.Frame):
         except Exception as e:
             print(f"Error al generar demo: {e}")
             messagebox.showerror("Error", "No se pudo generar los datos demo")
+
+    def ir_a_transacciones(self):
+        """Navega de forma robusta a la pestaña de Transacciones (índice 1)."""
+        # 1) Intento directo vía referencia a la app almacenada en root (si existe)
+        try:
+            toplevel = self.winfo_toplevel()
+            if hasattr(toplevel, 'app') and hasattr(toplevel.app, 'notebook'):
+                toplevel.app.notebook.select(1)
+                return
+        except Exception:
+            pass
+
+        # 2) Fallback: recorrer ancestros y buscar un atributo 'notebook'
+        parent = getattr(self, 'master', None)
+        while parent is not None:
+            if hasattr(parent, 'notebook'):
+                try:
+                    parent.notebook.select(1)
+                    return
+                except Exception:
+                    break
+            parent = getattr(parent, 'master', None)
+
+        # 3) Si no se encontró, mostrar mensaje informativo
+        messagebox.showinfo("Navegación",
+                            "No se pudo encontrar el contenedor de pestañas para navegar a Transacciones.")

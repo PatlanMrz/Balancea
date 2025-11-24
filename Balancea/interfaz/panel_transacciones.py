@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 from tkcalendar import DateEntry
+import csv
 
 
 class PanelTransacciones(ttk.Frame):
@@ -46,7 +47,7 @@ class PanelTransacciones(ttk.Frame):
                                    state='readonly', width=12)
         filtro_tipo.set('Todos')
         filtro_tipo.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
-        filtro_tipo.bind('<<ComboboxSelected>>', lambda e: self.aplicar_filtros())
+        filtro_tipo.bind('<<ComboboxSelected>>', self.on_cambio_tipo_filtro)
 
         # Filtro por Categoría
         ttk.Label(frame_busqueda, text="Categoría:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=5)
@@ -138,19 +139,19 @@ class PanelTransacciones(ttk.Frame):
         self.btn_limpiar.pack(side=tk.LEFT, padx=5)
 
         # === SECCIÓN LISTA DE TRANSACCIONES ===
-        frame_lista = ttk.LabelFrame(self, text="Historial de Transacciones", padding="10")
-        frame_lista.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
+        self.frame_lista = ttk.LabelFrame(self, text="Historial de Transacciones", padding="10")
+        self.frame_lista.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
 
         # Configurar grid para expandir
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(2, weight=1)
-        frame_lista.columnconfigure(0, weight=1)
-        frame_lista.rowconfigure(0, weight=1)
+        self.frame_lista.columnconfigure(0, weight=1)
+        self.frame_lista.rowconfigure(0, weight=1)
 
         # Crear Treeview
         columnas = ('Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría')
-        self.tree = ttk.Treeview(frame_lista, columns=columnas, show='headings', height=12)
+        self.tree = ttk.Treeview(self.frame_lista, columns=columnas, show='headings', height=12)
 
         # Configurar columnas
         self.tree.heading('Fecha', text='Fecha')
@@ -166,11 +167,15 @@ class PanelTransacciones(ttk.Frame):
         self.tree.column('Categoría', width=150)
 
         # Scrollbar
-        scrollbar = ttk.Scrollbar(frame_lista, orient=tk.VERTICAL, command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(self.frame_lista, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
 
         self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+
+        # Frame de estado vacío (oculto inicialmente)
+        self.empty_state_frame = ttk.Frame(self)
+        # No se empaqueta aún; se mostrará cuando no haya transacciones
 
         # Bind para selección
         self.tree.bind('<<TreeviewSelect>>', self.seleccionar_transaccion)
@@ -223,78 +228,77 @@ class PanelTransacciones(ttk.Frame):
                 self.categoria_combo.current(0)
 
     def actualizar_filtro_categorias(self):
-        """Actualiza el combo de filtro de categorías"""
-        todas_categorias = []
-        for categorias in self.gestor_datos.categorias.values():
-            todas_categorias.extend(categorias)
-        self.filtro_categoria_combo['values'] = ['Todas'] + todas_categorias
+        """Actualiza el combo de filtro de categorías según el tipo seleccionado en filtros"""
+        tipo_sel = self.filtro_tipo_var.get()
+        if tipo_sel in ('Ingreso', 'Gasto'):
+            categorias = self.gestor_datos.categorias.get(tipo_sel, [])
+            self.filtro_categoria_combo['values'] = ['Todas'] + categorias
+        else:
+            # Sin tipo seleccionado: mostrar todas
+            todas_categorias = []
+            for categorias in self.gestor_datos.categorias.values():
+                todas_categorias.extend(categorias)
+            self.filtro_categoria_combo['values'] = ['Todas'] + todas_categorias
+
+        # Si la categoría actual no está en la lista, resetear a 'Todas'
+        actual = self.filtro_categoria_var.get()
+        if actual not in self.filtro_categoria_combo['values']:
+            self.filtro_categoria_var.set('Todas')
 
     def aplicar_filtros(self, *args):
         """Aplica los filtros de búsqueda"""
-        termino = self.busqueda_var.get().lower()
-        tipo_filtro = self.filtro_tipo_var.get()
-        categoria_filtro = self.filtro_categoria_var.get()
-
         # Limpiar árbol
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        # Obtener transacciones filtradas
-        transacciones = self.gestor_datos.transacciones.copy()
+        transacciones = self.obtener_transacciones_filtradas()
 
-        # Filtrar por búsqueda
-        if termino:
-            transacciones = [t for t in transacciones
-                           if termino in t['descripcion'].lower()]
-
-        # Filtrar por tipo
-        if tipo_filtro != 'Todos':
-            transacciones = [t for t in transacciones if t['tipo'] == tipo_filtro]
-
-        # Filtrar por categoría
-        if categoria_filtro != 'Todas':
-            transacciones = [t for t in transacciones if t['categoria'] == categoria_filtro]
-
-        # ✅ FIX: Mostrar mensaje si no hay resultados
         if not transacciones:
-            # No hacer nada, el árbol quedará vacío
-            pass
-        else:
-            # Mostrar resultados
-            transacciones = sorted(transacciones, key=lambda x: x['fecha'], reverse=True)
-            for t in transacciones:
-                monto_formato = f"${t['monto']:,.2f}"
-                # ✅ FIX: Truncar descripción al mostrar
-                descripcion_display = self.truncar_descripcion(t['descripcion'])
+            return  # lista vacía
 
-                self.tree.insert('', tk.END, values=(
-                    t['fecha'],
-                    descripcion_display,
-                    monto_formato,
-                    t['tipo'],
-                    t['categoria']
-                ))
+        # Mostrar resultados ordenados
+        transacciones = sorted(transacciones, key=lambda x: x['fecha'], reverse=True)
+        for t in transacciones:
+            monto_formato = f"${t['monto']:,.2f}"
+            descripcion_display = self.truncar_descripcion(t['descripcion'])
+            self.tree.insert('', tk.END, values=(
+            t['fecha'],
+            descripcion_display,
+            monto_formato,
+            t['tipo'],
+            t['categoria']
+            ))
 
     def limpiar_filtros(self):
         """Limpia todos los filtros"""
         self.busqueda_var.set('')
         self.filtro_tipo_var.set('Todos')
+        self.actualizar_filtro_categorias()
         self.filtro_categoria_var.set('Todas')
         self.cargar_transacciones()
 
     def exportar_transacciones(self):
-        """Exporta transacciones a CSV"""
+        """Exporta a CSV SOLO las transacciones que coinciden con los filtros activos"""
         archivo = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            title="Exportar transacciones"
+            title="Exportar transacciones filtradas"
         )
 
-        if archivo:
-            if self.gestor_datos.exportar_csv(archivo):
-                messagebox.showinfo("Éxito", f"Transacciones exportadas a:\n{archivo}")
-            else:
-                messagebox.showerror("Error", "No se pudo exportar el archivo")
+        if not archivo:
+            return
+
+        filas = self.obtener_transacciones_filtradas()
+        try:
+            with open(archivo, 'w', newline='', encoding='utf-8') as f:
+                campos = ['id', 'fecha', 'descripcion', 'monto', 'tipo', 'categoria']
+                writer = csv.DictWriter(f, fieldnames=campos)
+                writer.writeheader()
+                writer.writerows(filas)
+            messagebox.showinfo("Éxito", f"Transacciones filtradas exportadas a:\n{archivo}")
+        except Exception as e:
+            print(f"Error al exportar: {e}")
+            messagebox.showerror("Error", "No se pudo exportar el archivo")
 
     def gestionar_categorias(self):
         """Abre ventana para gestionar categorías"""
@@ -474,77 +478,59 @@ class PanelTransacciones(ttk.Frame):
 
         # ✅ FIX: Mostrar mensaje si no hay transacciones
         if not transacciones:
-            # Crear overlay con mensaje
-            if not hasattr(self, 'frame_vacio_trans'):
-                # Frame overlay que se coloca sobre el Treeview
-                self.frame_vacio_trans = tk.Frame(self.tree.master, bg='#ECF0F1')
+            # Ocultar la lista y mostrar estado vacío a pantalla completa del panel
+            try:
+                self.frame_lista.grid_remove()
+            except Exception:
+                pass
 
-            # Limpiar y recrear
-            for widget in self.frame_vacio_trans.winfo_children():
-                widget.destroy()
+            # Limpiar y construir el estado vacío si es necesario
+            for w in self.empty_state_frame.winfo_children():
+                w.destroy()
 
-            # Posicionar sobre el área del tree
-            self.frame_vacio_trans.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-
-            # Contenido del mensaje
-            lbl_icono = tk.Label(self.frame_vacio_trans,
-                                 text="💳",
-                                 font=('Arial', 48),
-                                 bg='#ECF0F1')
+            lbl_icono = ttk.Label(self.empty_state_frame, text="💳", font=('Arial', 48))
             lbl_icono.pack(pady=10)
 
-            lbl_titulo = tk.Label(self.frame_vacio_trans,
-                                  text="No hay transacciones registradas",
-                                  font=('Arial', 14, 'bold'),
-                                  bg='#ECF0F1',
-                                  fg='#2C3E50')
+            lbl_titulo = ttk.Label(self.empty_state_frame,
+                                   text="No hay transacciones registradas",
+                                   font=('Arial', 14, 'bold'),
+                                   foreground='#2C3E50')
             lbl_titulo.pack(pady=5)
 
-            lbl_mensaje = tk.Label(self.frame_vacio_trans,
-                                   text="Comienza tu registro financiero agregando\ntu primera transacción con el botón de arriba",
-                                   font=('Arial', 10),
-                                   bg='#ECF0F1',
-                                   fg='#7F8C8D',
-                                   justify=tk.CENTER)
+            lbl_mensaje = ttk.Label(self.empty_state_frame,
+                                    text="Comienza tu registro financiero agregando\ntu primera transacción con el formulario superior",
+                                    font=('Arial', 10),
+                                    foreground='#7F8C8D',
+                                    justify=tk.CENTER)
             lbl_mensaje.pack(pady=10)
 
-            # Frame con botones de ayuda
-            frame_tips = tk.Frame(self.frame_vacio_trans, bg='#ECF0F1')
+            # Tips
+            frame_tips = ttk.Frame(self.empty_state_frame)
             frame_tips.pack(pady=15)
 
-            lbl_tips_titulo = tk.Label(frame_tips,
-                                       text="💡 Consejos rápidos:",
-                                       font=('Arial', 10, 'bold'),
-                                       bg='#ECF0F1',
-                                       fg='#3498DB')
+            lbl_tips_titulo = ttk.Label(frame_tips,
+                                        text="💡 Consejos rápidos:",
+                                        font=('Arial', 10, 'bold'),
+                                        foreground='#3498DB')
             lbl_tips_titulo.pack(anchor=tk.W, padx=20)
 
             tips = [
                 "• Registra tus gastos diariamente",
                 "• Sé específico en las descripciones",
-                "• Usa las categorías correctas",
-                "• Puedes generar datos demo para probar"
+                "• Usa las categorías correctas"
             ]
-
             for tip in tips:
-                lbl_tip = tk.Label(frame_tips,
-                                   text=tip,
-                                   font=('Arial', 9),
-                                   bg='#ECF0F1',
-                                   fg='#2C3E50',
-                                   anchor=tk.W)
-                lbl_tip.pack(anchor=tk.W, padx=20, pady=2)
+                ttk.Label(frame_tips, text=tip, font=('Arial', 9)).pack(anchor=tk.W, padx=20, pady=2)
 
-            # Botón demo
-            btn_demo = ttk.Button(frame_tips,
-                                  text="🎲 Generar Datos Demo",
-                                  command=self.generar_demo_desde_transacciones)
-            btn_demo.pack(pady=15)
-
+            # Empaquetar el estado vacío ocupando todo
+            self.empty_state_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
         else:
-            # ✅ Ocultar mensaje si hay transacciones
-            if hasattr(self, 'frame_vacio_trans'):
-                self.frame_vacio_trans.place_forget()
+            # Mostrar la lista y ocultar el estado vacío
+            try:
+                self.empty_state_frame.grid_forget()
+            except Exception:
+                pass
+            self.frame_lista.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
 
             # Mostrar transacciones normalmente
             for t in transacciones:
@@ -560,6 +546,28 @@ class PanelTransacciones(ttk.Frame):
                 ))
 
     # ✅ Agregar función helper para demo
+    def on_cambio_tipo_filtro(self, event=None):
+        """Handler cuando cambia el tipo en filtros: actualiza categorías y aplica filtros"""
+        self.actualizar_filtro_categorias()
+        self.aplicar_filtros()
+
+    def obtener_transacciones_filtradas(self):
+        """Retorna la lista de transacciones que coinciden con los filtros actuales"""
+        termino = self.busqueda_var.get().lower()
+        tipo_filtro = self.filtro_tipo_var.get()
+        categoria_filtro = self.filtro_categoria_var.get()
+
+        transacciones = self.gestor_datos.transacciones.copy()
+
+        if termino:
+            transacciones = [t for t in transacciones if termino in t['descripcion'].lower()]
+        if tipo_filtro and tipo_filtro != 'Todos':
+            transacciones = [t for t in transacciones if t['tipo'] == tipo_filtro]
+        if categoria_filtro and categoria_filtro != 'Todas':
+            transacciones = [t for t in transacciones if t['categoria'] == categoria_filtro]
+
+        return transacciones
+
     def generar_demo_desde_transacciones(self):
         """Genera datos demo desde transacciones"""
         if messagebox.askyesno("Generar Demo",

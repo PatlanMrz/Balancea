@@ -390,8 +390,8 @@ def main():
     """Función principal"""
     root = tk.Tk()
     app = BalanceaApp(root)
+    root.app = app
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()

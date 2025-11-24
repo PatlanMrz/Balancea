@@ -24,36 +24,12 @@ class PanelPresupuestos(ttk.Frame):
 
     def crear_interfaz(self):
         """Crea la interfaz del panel"""
-        # Canvas con scroll
-        canvas = tk.Canvas(self, bg='#ECF0F1', highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
-
-        self.frame_contenido = ttk.Frame(canvas)
-
-        self.frame_contenido.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-
-        canvas.create_window((0, 0), window=self.frame_contenido, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # Scroll con rueda del mouse
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-
-        canvas.bind('<Enter>', lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        canvas.bind('<Leave>', lambda e: canvas.unbind_all("<MouseWheel>"))
-
         # === ENCABEZADO ===
-        frame_header = ttk.Frame(self.frame_contenido)
-        frame_header.pack(fill=tk.X, padx=20, pady=20)
+        frame_header = ttk.Frame(self)
+        frame_header.pack(fill=tk.X, padx=20, pady=10)
 
         titulo = ttk.Label(frame_header, text="💰 Presupuestos por Categoría",
-                          font=('Arial', 16, 'bold'))
+                        font=('Arial', 16, 'bold'))
         titulo.pack(side=tk.LEFT)
 
         btn_actualizar = ttk.Button(frame_header, text="🔄 Actualizar",
@@ -65,7 +41,7 @@ class PanelPresupuestos(ttk.Frame):
         btn_agregar.pack(side=tk.RIGHT, padx=5)
 
         # === RESUMEN GENERAL ===
-        frame_resumen = ttk.LabelFrame(self.frame_contenido, text="📊 Resumen General", padding="20")
+        frame_resumen = ttk.LabelFrame(self, text="📊 Resumen General", padding="20")
         frame_resumen.pack(fill=tk.X, padx=20, pady=10)
 
         self.lbl_presupuestado = ttk.Label(frame_resumen, text="", font=('Arial', 11))
@@ -77,9 +53,64 @@ class PanelPresupuestos(ttk.Frame):
         self.lbl_restante = ttk.Label(frame_resumen, text="", font=('Arial', 11, 'bold'))
         self.lbl_restante.grid(row=0, column=2, sticky=tk.W, padx=20, pady=5)
 
-        # === PRESUPUESTOS ACTIVOS ===
-        self.frame_presupuestos = ttk.Frame(self.frame_contenido)
-        self.frame_presupuestos.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        # === PRESUPUESTOS ACTIVOS === (mismo patrón que Metas)
+        self.frame_lista = ttk.LabelFrame(self, text="💼 Mis Presupuestos", padding="10")
+        self.frame_lista.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        # Contenedor con scroll interno para tarjetas - SIMPLIFICADO
+        self.canvas_pres = tk.Canvas(self.frame_lista, bg='#ECF0F1', highlightthickness=0)
+        self.scrollbar_pres = ttk.Scrollbar(self.frame_lista, orient="vertical", command=self.canvas_pres.yview)
+        self.frame_presupuestos = ttk.Frame(self.canvas_pres)
+
+        # Ajustar scrollregion al contenido de tarjetas
+        self.frame_presupuestos.bind(
+            "<Configure>",
+            lambda e: self.canvas_pres.configure(scrollregion=self.canvas_pres.bbox("all"))
+        )
+
+        self.canvas_pres_window = self.canvas_pres.create_window((0, 0), window=self.frame_presupuestos, anchor="nw")
+        self.canvas_pres.configure(yscrollcommand=self.scrollbar_pres.set)
+        
+        # Ajustar ancho del frame interno al canvas
+        self.canvas_pres.bind('<Configure>', 
+                            lambda e: self.canvas_pres.itemconfigure(self.canvas_pres_window, width=e.width))
+
+        self.canvas_pres.pack(side="left", fill="both", expand=True)
+        self.scrollbar_pres.pack(side="right", fill="y")
+
+        # Scroll con rueda en la sección 'Mis Presupuestos'
+        def _on_mousewheel_pres(event):
+            delta = 0
+            if hasattr(event, 'delta') and event.delta != 0:
+                delta = int(-1 * (event.delta / 120))
+            elif getattr(event, 'num', None) == 4:
+                delta = -3
+            elif getattr(event, 'num', None) == 5:
+                delta = 3
+            if delta == 0 or not getattr(self, '_can_scroll_pres', False):
+                return
+            first, last = self.canvas_pres.yview()
+            if delta < 0 and first <= 0.0:
+                return
+            if delta > 0 and last >= 1.0:
+                return
+            self.canvas_pres.yview_scroll(delta, "units")
+
+        self.canvas_pres.bind('<Enter>', lambda e: (
+            self.canvas_pres.bind_all("<MouseWheel>", _on_mousewheel_pres),
+            self.canvas_pres.bind_all("<Button-4>", _on_mousewheel_pres),
+            self.canvas_pres.bind_all("<Button-5>", _on_mousewheel_pres)
+        ))
+        self.canvas_pres.bind('<Leave>', lambda e: (
+            self.canvas_pres.unbind_all("<MouseWheel>"),
+            self.canvas_pres.unbind_all("<Button-4>"),
+            self.canvas_pres.unbind_all("<Button-5>")
+        ))
+
+        self._can_scroll_pres = False
+
+        # Frame de estado vacío dentro de la sección lista
+        self.empty_state_frame = ttk.Frame(self.frame_lista)
 
     def actualizar_presupuestos(self):
         """Actualiza la visualización de presupuestos"""
@@ -104,20 +135,56 @@ class PanelPresupuestos(ttk.Frame):
 
         # Mostrar presupuestos
         if self.gestor_presupuestos.presupuestos:
+            # Ocultar estado vacío
+            try:
+                self.empty_state_frame.pack_forget()
+            except Exception:
+                pass
+            
+            # Asegurar que canvas esté visible
+            self.canvas_pres.pack(side="left", fill="both", expand=True)
+            self.scrollbar_pres.pack(side="right", fill="y")
+
             for categoria in sorted(self.gestor_presupuestos.presupuestos.keys()):
                 self.crear_tarjeta_presupuesto(categoria)
+
+            self._update_scroll_state()
         else:
             self.mostrar_sin_presupuestos()
 
-    def mostrar_sin_presupuestos(self):
-        """Muestra mensaje cuando no hay presupuestos"""
-        frame = ttk.Frame(self.frame_presupuestos)
-        frame.pack(expand=True, pady=50)
+        # Recalcular scroll
+        self._update_scroll_state()
 
-        ttk.Label(frame,
-                 text="💰 No tienes presupuestos configurados\n\nHaz clic en '➕ Nuevo Presupuesto' para comenzar",
-                 font=('Arial', 12),
-                 justify=tk.CENTER).pack()
+    def mostrar_sin_presupuestos(self):
+        """Muestra mensaje cuando no hay presupuestos ocupando toda la sección 'Mis Presupuestos'"""
+        # Ocultar completamente el canvas y scrollbar de presupuestos
+        try:
+            self.canvas_pres.pack_forget()
+            self.scrollbar_pres.pack_forget()
+        except Exception:
+            pass
+
+        # Limpiar estado vacío
+        for w in self.empty_state_frame.winfo_children():
+            w.destroy()
+
+        # Hacer que el estado vacío ocupe TODO el espacio disponible
+        self.empty_state_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Frame interno centrado
+        frame_centro = ttk.Frame(self.empty_state_frame)
+        frame_centro.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        
+        ttk.Label(frame_centro, text="💰", font=('Arial', 48)).pack(pady=10)
+        ttk.Label(frame_centro,
+                text="No tienes presupuestos configurados",
+                font=('Arial', 14, 'bold')).pack(pady=5)
+        ttk.Label(frame_centro,
+                text="Haz clic en '➕ Nuevo Presupuesto' para comenzar",
+                font=('Arial', 10)).pack(pady=5)
+
+        # Forzar actualización de la geometría
+        self.empty_state_frame.update_idletasks()
 
     def crear_tarjeta_presupuesto(self, categoria):
         """Crea una tarjeta visual para un presupuesto"""
@@ -224,15 +291,22 @@ class PanelPresupuestos(ttk.Frame):
         """Muestra diálogo para agregar presupuesto"""
         ventana = tk.Toplevel(self)
         ventana.title("Nuevo Presupuesto")
-        ventana.geometry("450x300")
         ventana.transient(self.winfo_toplevel())
         ventana.grab_set()
 
+        # Tamaño y mínimos para que no se corten botones
+        ventana.geometry("500x360")
+        try:
+            ventana.minsize(480, 340)
+            ventana.resizable(True, True)
+        except Exception:
+            pass
+
         # Centrar
         ventana.update_idletasks()
-        x = (ventana.winfo_screenwidth() // 2) - 225
-        y = (ventana.winfo_screenheight() // 2) - 150
-        ventana.geometry(f"450x300+{x}+{y}")
+        x = (ventana.winfo_screenwidth() // 2) - (ventana.winfo_width() // 2)
+        y = (ventana.winfo_screenheight() // 2) - (ventana.winfo_height() // 2)
+        ventana.geometry(f"{ventana.winfo_width()}x{ventana.winfo_height()}+{x}+{y}")
 
         frame = ttk.Frame(ventana, padding="20")
         frame.pack(fill=tk.BOTH, expand=True)
@@ -285,7 +359,7 @@ class PanelPresupuestos(ttk.Frame):
 
         # Botones
         frame_btns = ttk.Frame(frame)
-        frame_btns.pack(pady=20)
+        frame_btns.pack(pady=20, fill=tk.X)
 
         def guardar():
             categoria = combo_cat.get()
@@ -322,9 +396,16 @@ class PanelPresupuestos(ttk.Frame):
 
         ventana = tk.Toplevel(self)
         ventana.title(f"Editar Presupuesto - {categoria}")
-        ventana.geometry("400x200")
         ventana.transient(self.winfo_toplevel())
         ventana.grab_set()
+
+        # Tamaño y mínimos para evitar recortes
+        ventana.geometry("480x260")
+        try:
+            ventana.minsize(460, 240)
+            ventana.resizable(True, True)
+        except Exception:
+            pass
 
         frame = ttk.Frame(ventana, padding="20")
         frame.pack(fill=tk.BOTH, expand=True)
@@ -364,3 +445,30 @@ class PanelPresupuestos(ttk.Frame):
             if self.gestor_presupuestos.eliminar_presupuesto(categoria):
                 self.actualizar_presupuestos()
                 messagebox.showinfo("Éxito", "Presupuesto eliminado")
+
+    def _update_scroll_state(self):
+        """Recalcula el scroll SOLO de la sección 'Mis Presupuestos'."""
+        try:
+            # Si la lista está visible, actualizar su scroll interno
+            if self.canvas_pres.winfo_ismapped():
+                self.canvas_pres.update_idletasks()
+                bbox = self.canvas_pres.bbox('all')
+                if bbox:
+                    self.canvas_pres.configure(scrollregion=bbox)
+                    content_h = bbox[3] - bbox[1]
+                else:
+                    self.canvas_pres.configure(scrollregion=(0, 0, 0, 0))
+                    content_h = 0
+                view_h = self.canvas_pres.winfo_height()
+                self._can_scroll_pres = content_h > view_h + 1
+                if self._can_scroll_pres:
+                    self.scrollbar_pres.state(['!disabled'])
+                else:
+                    self.scrollbar_pres.state(['disabled'])
+                    self.canvas_pres.yview_moveto(0.0)
+            else:
+                # Lista oculta: deshabilitar scroll
+                self._can_scroll_pres = False
+                self.scrollbar_pres.state(['disabled'])
+        except Exception:
+            pass

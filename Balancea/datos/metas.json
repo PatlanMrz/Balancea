@@ -1,13 +1,1 @@
-[
-  {
-    "id": "1",
-    "nombre": "boda",
-    "monto_objetivo": 10000.0,
-    "monto_actual": 0.0,
-    "fecha_creacion": "2025-11-21",
-    "fecha_limite": "2025-11-21",
-    "descripcion": "boda con mi nena la mas preciosa, la mas bella, la mas hermosa de todo el mundo,",
-    "completada": false,
-    "fecha_completada": null
-  }
-]
+[]
